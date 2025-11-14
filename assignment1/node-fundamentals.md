@@ -6,8 +6,13 @@ Node.js is basically Javascript that can run locally on a machine without any sa
 
 ## How does Node.js differ from running JavaScript in the browser?
 
+<<<<<<< HEAD
 We can't access stuff like the DOM or the screen. Instead, we have benefits like accessing the file system, storing secrets, or starting processes of the local machine. And even though they run on the same V8 engine,
 JS in the browser uses its own Web APIs (DOM, window, etc), while Node has its Node APIs (fs, os, path)
+=======
+We can't access stuff like the DOM or the screen. Instead, we have benefits like accessing the file system, storing secrets, or starting processes of the local machine.
+
+> > > > > > > e280e2a (Assignment 1)
 
 ## What is the V8 engine, and how does Node use it?
 
