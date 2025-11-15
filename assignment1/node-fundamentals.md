@@ -6,7 +6,8 @@ Node.js is basically Javascript that can run locally on a machine without any sa
 
 ## How does Node.js differ from running JavaScript in the browser?
 
-We can't access stuff like the DOM or the screen. Instead, we have benefits like accessing the file system, storing secrets, or starting processes of the local machine.
+We can't access stuff like the DOM or the screen. Instead, we have benefits like accessing the file system, storing secrets, or starting processes of the local machine. And even though they run on the same V8 engine,
+JS in the browser uses its own Web APIs (DOM, window, etc), while Node has its Node APIs (fs, os, path)
 
 ## What is the V8 engine, and how does Node use it?
 
@@ -14,14 +15,14 @@ The V8 engine is basically what runs JS code, developed by Google for their Chro
 
 ## What are some key use cases for Node.js?
 
-Fast, scalable,
+It's better for storing secrets like passwords/keys, building web apps, and it's better for real-time apps.
 
 ## Explain the difference between CommonJS and ES Modules. Give a code example of each.
 
 **CommonJS (default in Node.js):**
 
 CJS uses require() and module.exports. for syntax.
-It's syncrhronous, and Node.js's default.
+It's synchronous (runtime), and Node.js's default.
 
 ```js
 //circle.js:
@@ -35,7 +36,7 @@ console.log(`The area of a circle of radius 2 is ${circle.area(4)}`);
 **ES Modules (supported in modern Node.js):**
 
 ES came from browsers and is more modern.
-It uses import/export syntax
+It uses import/export syntax and is asynchronous.
 
 ```js
 // circle.mjs
