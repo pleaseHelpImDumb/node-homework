@@ -4,6 +4,8 @@ const { logon, register, logoff } = require("../controllers/userController");
 // a few useful globals
 let saveRes = null;
 let saveData = null;
+global.users = [];
+global.user_id = null;
 
 describe("testing logon, register, and logoff", () => {
   it("You can register a user.", async () => {
@@ -31,7 +33,7 @@ describe("testing logon, register, and logoff", () => {
 
   it("returns the expected name.", () => {
     saveData = saveRes._getJSONData();
-    expect(saveData.user.name).toBe("Jim");
+    expect(saveData.name).toBe("Jim");
   });
   it("A logon attempt with a bad password returns a 401", async () => {
     const req = httpMocks.createRequest({
