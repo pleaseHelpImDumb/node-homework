@@ -1,4 +1,5 @@
 const { StatusCodes } = require("http-status-codes");
+const { taskSchema } = require("../validation/taskSchema.js");
 
 const taskCounter = (() => {
   let lastTaskNumber = 0;
@@ -9,10 +10,15 @@ const taskCounter = (() => {
 })();
 
 const create = (req, res) => {
+  if (!req.body) req.body = {};
+  const { error, value } = taskSchema.validate(req.body, { abortEarly: false });
+  if (error) {
+    return res.status(StatusCodes.BAD_REQUEST).json(error);
+  }
+
   const newTask = {
-    ...req.body,
+    ...value,
     id: taskCounter(),
-    isCompleted: false,
     userId: global.user_id.email,
   };
   global.tasks.push(newTask);
