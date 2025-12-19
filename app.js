@@ -17,6 +17,12 @@ global.tasks = [];
 
 app.use(express.json({ limit: "1kb" }));
 
+// *********
+// authentication
+const authMiddleware = require("./middleware/auth");
+const taskRouter = require("./routes/taskRoutes");
+app.use("/api/tasks", authMiddleware, taskRouter);
+
 app.use((req, res, next) => {
   console.log(
     "req.method: ",
