@@ -7,6 +7,8 @@ const userRouter = require("./routes/userRoutes");
 
 const app = express();
 
+const pool = require("./db/pg-pool");
+
 // **********
 // USER STORAGE
 // **********
@@ -41,6 +43,15 @@ app.get("/", (req, res) => {
 
 app.use("/api/users", userRouter);
 
+app.get("/health", async (req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.json({ status: "ok", db: "connected" });
+  } catch (err) {
+    res.status(500).json({ message: `db not connected, error: ${ err.message }` });
+  }
+});
+
 // NOT FOUND
 app.use(notfoundHandler);
 
@@ -69,7 +80,8 @@ async function shutdown(code = 0) {
   try {
     await new Promise((resolve) => server.close(resolve));
     console.log("HTTP server closed.");
-    // If you have DB connections, close them here
+    // If you have DB connections, close them 
+    await pool.end();
   } catch (err) {
     console.error("Error during shutdown:", err);
     code = 1;
