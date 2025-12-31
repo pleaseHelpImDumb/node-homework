@@ -2,7 +2,7 @@ const { userSchema } = require("../validation/userSchema.js");
 const { StatusCodes } = require("http-status-codes");
 
 // DB
-const pool = require('../db/pg-pool.js');
+const prisma = require("../db/prisma.js");
 // --
 
 const crypto = require("crypto");
@@ -13,7 +13,7 @@ async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
   const derivedKey = await scrypt(password, salt, 64);
   return `${salt}:${derivedKey.toString("hex")}`;
-} 
+}
 
 async function comparePassword(inputPassword, storedHash) {
   const [salt, key] = storedHash.split(":");
@@ -29,40 +29,46 @@ const register = async (req, res, next) => {
     return res.status(StatusCodes.BAD_REQUEST).json(error);
   }
   let user = null;
-  value.hashed_password = await hashPassword(value.password);
-
+  const hashed_password = await hashPassword(value.password);
+  const { name, email } = value;
   try {
-    user = await pool.query(`INSERT INTO users (email, name, hashed_password) 
-      VALUES ($1, $2, $3) RETURNING id, email, name`,
-      [value.email, value.name, value.hashed_password]
-    );
-  } catch(e){
-    if (e.code === "23505"){
-      res.status(StatusCodes.BAD_REQUEST).json({message:"This user is already registered."});
+    user = await prisma.user.create({
+      data: { name, email, hashed_password },
+      select: { name: true, email: true, id: true },
+    });
+  } catch (e) {
+    if (e.name === "PrismaClientKnownRequestError" && e.code == "P2002") {
+      res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "This user is already registered." });
     }
     return next(e);
   }
-  res.status(StatusCodes.CREATED).json({email:value.email, name:value.name});
+  res
+    .status(StatusCodes.CREATED)
+    .json({ email: value.email, name: value.name });
 };
 
 const logon = async (req, res) => {
-  //const user = global.users.find((user) => user.email == req.body.email);
+  const lower_email = req.body.email.toLowerCase();
+  const user = await prisma.user.findUnique({ where: { email: lower_email } });
 
-  const user = await pool.query("SELECT * FROM users WHERE email = $1", [req.body.email]);
-
-  if (user.rows.length == 0) {
+  if (!user) {
     return res
       .status(StatusCodes.UNAUTHORIZED)
       .json({ message: "Authentication Failed." });
   }
 
-  const isMatch = await comparePassword(req.body.password, user.rows[0].hashed_password);
+  const isMatch = await comparePassword(
+    req.body.password,
+    user.hashed_password
+  );
 
   if (isMatch) {
-    global.user_id = user.rows[0];
+    global.user_id = user.id;
     return res.status(StatusCodes.OK).json({
-      name: user.rows[0].name,
-      email: user.rows[0].email,
+      name: user.name,
+      email: user.email,
     });
   }
 
