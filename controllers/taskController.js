@@ -8,11 +8,8 @@ const create = async (req, res) => {
   if (!req.body) req.body = {};
   const { error, value } = taskSchema.validate(req.body, { abortEarly: false });
   if (error) {
-    console.log("Validation error:", error);  // ADD THIS
     return res.status(StatusCodes.BAD_REQUEST).json(error);
   }
-  
-  console.log("Value after validation:", value);  // ADD THIS
   
   try {
     const result = await pool.query(
@@ -22,11 +19,9 @@ const create = async (req, res) => {
       [value.title, value.isCompleted, global.user_id]
     );
 
-    console.log("Query result:", result.rows[0]);  // ADD THIS
-
     res.status(StatusCodes.CREATED).json(result.rows[0]);
   } catch (error) {
-    console.error("Error creating task:", error);  // This should show the real error
+    console.error("Error creating task:", error);  
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ message: "Error creating task." });
@@ -179,3 +174,4 @@ const deleteTask = async (req, res) => {
 };
 
 module.exports = { create, index, show, update, deleteTask };
+
