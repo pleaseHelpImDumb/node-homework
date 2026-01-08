@@ -5,4 +5,4 @@ if [ $# -gt 0 ]; then
 else
     pattern="^tdd/.+\\.test\\.js"
 fi
-npx jest --testPathPatterns "$pattern"
+npx jest --testPathPatterns "$pattern" --detectOpenHandles
