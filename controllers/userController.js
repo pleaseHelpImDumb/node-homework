@@ -28,25 +28,60 @@ const register = async (req, res, next) => {
   if (error) {
     return res.status(StatusCodes.BAD_REQUEST).json(error);
   }
-  let user = null;
   const hashed_password = await hashPassword(value.password);
   const { name, email } = value;
+
   try {
-    user = await prisma.user.create({
-      data: { name, email, hashed_password },
-      select: { name: true, email: true, id: true },
+    const result = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: { name, email, hashed_password },
+        select: { name: true, email: true, id: true },
+      });
+
+      const welcomeTaskData = [
+        {
+          title: "Complete your profile",
+          userId: newUser.id,
+          priority: "medium",
+        },
+        { title: "Add your first task", userId: newUser.id, priority: "high" },
+        { title: "Explore the app", userId: newUser.id, priority: "low" },
+      ];
+      await tx.task.createMany({ data: welcomeTaskData });
+
+      const welcomeTasks = await tx.task.findMany({
+        where: {
+          userId: newUser.id,
+          title: { in: welcomeTaskData.map((t) => t.title) },
+        },
+        select: {
+          id: true,
+          title: true,
+          isCompleted: true,
+          userId: true,
+          priority: true,
+        },
+      });
+
+      return { user: newUser, welcomeTasks: welcomeTasks };
     });
+
+    global.user_id = result.user.id;
+    res.status(201);
+    res.json({
+      user: result.user,
+      welcomeTasks: result.welcomeTasks,
+      transactionStatus: "success",
+    });
+    return;
   } catch (e) {
     if (e.name === "PrismaClientKnownRequestError" && e.code == "P2002") {
-      res
+      return res
         .status(StatusCodes.BAD_REQUEST)
-        .json({ message: "This user is already registered." });
+        .json({ message: "Email already registered" });
     }
     return next(e);
   }
-  res
-    .status(StatusCodes.CREATED)
-    .json({ email: value.email, name: value.name });
 };
 
 const logon = async (req, res) => {
