@@ -1,5 +1,9 @@
 const { StatusCodes } = require("http-status-codes");
-const { taskSchema, patchTaskSchema } = require("../validation/taskSchema.js");
+const {
+  taskSchema,
+  patchTaskSchema,
+  paginationSchema,
+} = require("../validation/taskSchema.js");
 // DB
 const prisma = require("../db/prisma.js");
 // --
@@ -10,38 +14,116 @@ const create = async (req, res, next) => {
   if (error) {
     return res.status(StatusCodes.BAD_REQUEST).json(error);
   }
-  const { title, isCompleted } = value;
+  const { title, isCompleted, priority } = value;
   try {
     const task = await prisma.task.create({
       data: {
         title,
-        is_completed: isCompleted,
-        user_id: global.user_id,
+        isCompleted: isCompleted,
+        userId: global.user_id,
+        priority,
       },
     });
 
-    //need to map for TDD
-    const responseTask = {
-      id: task.id,
-      title: task.title,
-      isCompleted: task.is_completed,
-    };
-    res.status(StatusCodes.CREATED).json(responseTask);
+    res.status(StatusCodes.CREATED).json(task);
   } catch (error) {
     next(error);
   }
 };
 
-const index = async (req, res) => {
+const bulkCreate = async (req, res, next) => {
+  const { tasks } = req.body;
+
+  if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+    return res.status(400).json({
+      error: "Invalid request data. Expected an array of tasks.",
+    });
+  }
+
+  const validTasks = [];
+  for (const task of tasks) {
+    const { error, value } = taskSchema.validate(task);
+    if (error) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: error.details,
+      });
+    }
+    validTasks.push({
+      title: value.title,
+      isCompleted: value.isCompleted || false,
+      priority: value.priority || "medium",
+      userId: global.user_id,
+    });
+  }
+
   try {
-    const tasks = await prisma.task.findMany({
-      where: {
-        user_id: global.user_id,
-      },
-      select: { title: true, is_completed: true, id: true },
+    const result = await prisma.task.createMany({
+      data: validTasks,
+      skipDuplicates: false,
     });
 
-    if (tasks.length === 0) {
+    res.status(201).json({
+      message: "success!",
+      tasksCreated: result.count,
+      totalRequested: validTasks.length,
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+const index = async (req, res) => {
+  const { error, value } = paginationSchema.validate(req.query, {
+    abortEarly: false,
+    stripUnknown: true,
+  });
+
+  if (error) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      error: "Invalid pagination parameters",
+      details: error.details.map((err) => err.message),
+    });
+  }
+  const { page, limit, find } = value;
+
+  const skip = (page - 1) * limit;
+
+  const whereClause = { userId: global.user_id };
+
+  if (find) {
+    whereClause.title = {
+      contains: req.query.find,
+      mode: "insensitive",
+    };
+  }
+
+  try {
+    const tasks = await prisma.task.findMany({
+      where: whereClause,
+      select: {
+        title: true,
+        isCompleted: true,
+        id: true,
+        priority: true,
+        createdAt: true,
+        User: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+      skip: skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+    });
+
+    const totalTasks = await prisma.task.count({
+      where: whereClause,
+    });
+
+    if (tasks.length === 0 && totalTasks === 0) {
       return res
         .status(StatusCodes.NOT_FOUND)
         .json({ message: "No tasks found." });
@@ -53,7 +135,18 @@ const index = async (req, res) => {
         .json({ message: "No tasks found for this user." });
     }
 
-    res.status(200).json(tasks);
+    const totalPages = Math.ceil(totalTasks / limit);
+
+    const pagination = {
+      page: page,
+      pages: totalPages,
+      total: totalTasks,
+      limit: limit,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    };
+
+    res.status(StatusCodes.OK).json({ tasks, pagination });
   } catch (error) {
     console.error("Error fetching tasks:", error);
     return res
@@ -73,15 +166,21 @@ const show = async (req, res, next) => {
   try {
     const task = await prisma.task.findUnique({
       where: {
-        id_user_id: {
+        id_userId: {
           id: id,
-          user_id: global.user_id,
+          userId: global.user_id,
         },
       },
       select: {
         id: true,
         title: true,
-        is_completed: true,
+        isCompleted: true,
+        User: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
       },
     });
 
@@ -120,15 +219,16 @@ const update = async (req, res, next) => {
     const task = await prisma.task.update({
       data: {
         title: value.title,
-        is_completed: value.isCompleted,
+        isCompleted: value.isCompleted,
+        priority: value.priority,
       },
       where: {
-        id_user_id: {
+        id_userId: {
           id: id,
-          user_id: global.user_id,
+          userId: global.user_id,
         },
       },
-      select: { title: true, is_completed: true, id: true },
+      select: { title: true, isCompleted: true, id: true, priority: true },
     });
 
     res.json(task);
@@ -154,21 +254,21 @@ const deleteTask = async (req, res, next) => {
   try {
     const deletedTask = await prisma.task.delete({
       where: {
-        id_user_id: {
+        id_userId: {
           id: id,
-          user_id: global.user_id,
+          userId: global.user_id,
         },
       },
       select: {
         id: true,
         title: true,
-        is_completed: true,
+        isCompleted: true,
+        priority: true,
       },
     });
 
     return res.json(deletedTask);
   } catch (error) {
-    // 4. Handle "Not Found"
     if (error.code === "P2025") {
       return res
         .status(StatusCodes.NOT_FOUND)
@@ -178,4 +278,4 @@ const deleteTask = async (req, res, next) => {
   }
 };
 
-module.exports = { create, index, show, update, deleteTask };
+module.exports = { create, index, show, update, deleteTask, bulkCreate };
