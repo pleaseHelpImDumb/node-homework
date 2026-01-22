@@ -20,12 +20,12 @@ const create = async (req, res, next) => {
       data: {
         title,
         isCompleted: isCompleted,
-        userId: global.user_id,
+        userId: req.user.id,
         priority,
       },
     });
-
-    res.status(StatusCodes.CREATED).json(task);
+    const { userId, ...taskWithoutUserId } = task;
+    res.status(StatusCodes.CREATED).json(taskWithoutUserId);
   } catch (error) {
     next(error);
   }
@@ -53,7 +53,7 @@ const bulkCreate = async (req, res, next) => {
       title: value.title,
       isCompleted: value.isCompleted || false,
       priority: value.priority || "medium",
-      userId: global.user_id,
+      userId: req.user.id,
     });
   }
 
@@ -89,7 +89,7 @@ const index = async (req, res) => {
 
   const skip = (page - 1) * limit;
 
-  const whereClause = { userId: global.user_id };
+  const whereClause = { userId: req.user.id };
 
   if (find) {
     whereClause.title = {
@@ -168,7 +168,7 @@ const show = async (req, res, next) => {
       where: {
         id_userId: {
           id: id,
-          userId: global.user_id,
+          userId: req.user.id,
         },
       },
       select: {
@@ -225,7 +225,7 @@ const update = async (req, res, next) => {
       where: {
         id_userId: {
           id: id,
-          userId: global.user_id,
+          userId: req.user.id,
         },
       },
       select: { title: true, isCompleted: true, id: true, priority: true },
@@ -256,7 +256,7 @@ const deleteTask = async (req, res, next) => {
       where: {
         id_userId: {
           id: id,
-          userId: global.user_id,
+          userId: req.user.id,
         },
       },
       select: {

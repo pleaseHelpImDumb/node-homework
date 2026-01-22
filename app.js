@@ -10,21 +10,35 @@ const prisma = require("./db/prisma");
 // **********
 // USER STORAGE
 // **********
-global.user_id = null;
 global.users = [];
 global.tasks = [];
-// **********
 
 app.use(express.json({ limit: "1kb" }));
 
 // *********
 // authentication
-const authMiddleware = require("./middleware/auth");
 const userRouter = require("./routes/userRoutes");
 const taskRouter = require("./routes/taskRoutes");
 const analyticsRouter = require("./routes/analyticsRoutes");
 
-app.use("/api/tasks", authMiddleware, taskRouter);
+// *********
+// security!
+app.set("trust proxy", 1);
+const helmet = require("helmet");
+const { xss } = require("express-xss-sanitizer");
+const rateLimiter = require("express-rate-limit");
+app.use(
+  rateLimiter({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+  })
+);
+// *********
+
+const cookieParser = require("cookie-parser");
+app.use(cookieParser());
+app.use(helmet());
+app.use(xss());
 
 app.use((req, res, next) => {
   console.log(
@@ -42,8 +56,8 @@ app.get("/", (req, res) => {
   res.json({ message: "/ get..." });
 });
 
+app.use("/api/tasks", taskRouter);
 app.use("/api/users", userRouter);
-app.use("/api/analytics", authMiddleware, analyticsRouter);
 
 app.get("/health", async (req, res) => {
   try {
