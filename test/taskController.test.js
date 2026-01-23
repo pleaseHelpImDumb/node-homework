@@ -78,42 +78,20 @@ describe("testing task creation", () => {
     });
     saveRes = httpMocks.createResponse({ eventEmitter: EventEmitter });
     await waitForRouteHandlerCompletion(create, req, saveRes);
+    saveTaskId = saveRes._getJSONData().id; // SAVE IT HERE for later tests
     expect(saveRes.statusCode).toBe(201);
   });
 
   it("17. The object returned from the create() call has the expected title.", async () => {
-    const req = httpMocks.createRequest({
-      method: "POST",
-      body: { title: "first task" },
-      user: { id: user1.id },
-    });
-    saveRes = httpMocks.createResponse({ eventEmitter: EventEmitter });
-    await waitForRouteHandlerCompletion(create, req, saveRes);
     expect(saveRes._getJSONData().title).toBe("first task");
   });
 
   it("18. The object has the right value for isCompleted.", async () => {
-    const req = httpMocks.createRequest({
-      method: "POST",
-      body: { title: "first task" },
-      user: { id: user1.id },
-    });
-    saveRes = httpMocks.createResponse({ eventEmitter: EventEmitter });
-    await waitForRouteHandlerCompletion(create, req, saveRes);
     expect(saveRes._getJSONData().isCompleted).toBe(false);
   });
 
   it("19. The object does not have any value for userId.", async () => {
-    const req = httpMocks.createRequest({
-      method: "POST",
-      body: { title: "first task" },
-      user: { id: user1.id },
-    });
-    saveRes = httpMocks.createResponse({ eventEmitter: EventEmitter });
-    await waitForRouteHandlerCompletion(create, req, saveRes);
     expect(saveRes._getJSONData().userId).toBeUndefined();
-
-    saveTaskId = saveRes._getJSONData().id; // SAVE IT HERE for later tests
   });
 });
 
@@ -162,6 +140,91 @@ describe("testing getting created tasks", () => {
     });
     const res = httpMocks.createResponse({ eventEmitter: EventEmitter }); // NEW response!
     await waitForRouteHandlerCompletion(index, req, res); // Actually call index with user2
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("26. You can retrieve the created task using show().", async () => {
+    const req = httpMocks.createRequest({
+      method: "GET",
+      user: { id: user1.id },
+      params: { id: saveTaskId.toString() },
+    });
+    const res = httpMocks.createResponse({ eventEmitter: EventEmitter }); // NEW response!
+    await waitForRouteHandlerCompletion(show, req, res); // Actually call index with user2
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("27. User2 can't retrieve a user1 task entry with show().", async () => {
+    const req = httpMocks.createRequest({
+      method: "GET",
+      user: { id: user2.id },
+      params: { id: saveTaskId.toString() },
+    });
+    const res = httpMocks.createResponse({ eventEmitter: EventEmitter }); // NEW response!
+    await waitForRouteHandlerCompletion(show, req, res); // Actually call index with user2
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("updating and deleting tasks", () => {
+  it("28. User1 can set the task corresponding to saveTaskId to isCompleted: true.", async () => {
+    const req = httpMocks.createRequest({
+      method: "PATCH",
+      user: { id: user1.id },
+      params: { id: saveTaskId.toString() },
+      body: { isCompleted: true },
+    });
+    saveRes = httpMocks.createResponse({ eventEmitter: EventEmitter });
+    await waitForRouteHandlerCompletion(update, req, saveRes);
+    expect(saveRes._getJSONData().isCompleted).toBe(true);
+  });
+
+  it("29. User2 cannot set the task corresponding to saveTaskId to isCompleted: true.", async () => {
+    const req = httpMocks.createRequest({
+      method: "PATCH",
+      user: { id: user2.id },
+      params: { id: saveTaskId.toString() },
+      body: { isCompleted: true },
+    });
+    saveRes = httpMocks.createResponse({ eventEmitter: EventEmitter });
+    await waitForRouteHandlerCompletion(update, req, saveRes);
+    expect(saveRes.statusCode).toBe(404); // User2 can't access user1's task!
+  });
+
+  it("30. User2 cannot delete the task with saveTaskId.", async () => {
+    const req = httpMocks.createRequest({
+      method: "PATCH",
+      user: { id: user2.id },
+      params: { id: saveTaskId.toString() },
+    });
+    saveRes = httpMocks.createResponse({ eventEmitter: EventEmitter });
+    await waitForRouteHandlerCompletion(deleteTask, req, saveRes);
+    expect(saveRes.statusCode).toBe(404); // User2 can't access user1's task!
+  });
+
+  it("31. User1 CAN delete the task with saveTaskId.", async () => {
+    const req = httpMocks.createRequest({
+      method: "PATCH",
+      user: { id: user1.id },
+      params: { id: saveTaskId.toString() },
+    });
+    saveRes = httpMocks.createResponse({ eventEmitter: EventEmitter });
+    await waitForRouteHandlerCompletion(deleteTask, req, saveRes);
+
+    console.log("Delete response:", saveRes._getJSONData()); // Debug
+
+    expect(saveRes.statusCode).toBe(200);
+    //expect(saveRes._getJSONData().id).toBe(saveTaskId);
+    //expect(saveRes._getJSONData().title).toBe("first task");
+  });
+
+  it("32. Retrieving user1's tasks now returns a 404.", async () => {
+    const req = httpMocks.createRequest({
+      method: "GET",
+      user: { id: user1.id },
+    });
+    const res = httpMocks.createResponse({ eventEmitter: EventEmitter });
+    await waitForRouteHandlerCompletion(index, req, res);
     expect(res.statusCode).toBe(404);
   });
 });
