@@ -48,10 +48,26 @@ describe("register a user ", () => {
     expect(saveRes.status).toBe(200);
   });
 
-  it("50. You can logoff.", async () => {
+  it("50. You ARE logged in (/api/tasks is not 401).", async () => {
+    const res = await agent
+      .get("/api/tasks")
+      .set("X-CSRF-Token", saveRes.body.csrfToken);
+
+    expect(res.status).not.toBe(401);
+  });
+
+  it("51. You can logoff.", async () => {
     saveRes = await agent
       .post("/api/users/logoff")
       .set("X-CSRF-Token", saveRes.body.csrfToken);
     expect(saveRes.status).toBe(200);
+  });
+
+  it("52. You ARE logged off (/api/tasks is 401).", async () => {
+    const res = await agent
+      .get("/api/tasks")
+      .set("X-CSRF-Token", saveRes.body.csrfToken);
+
+    expect(res.status).toBe(401);
   });
 });
