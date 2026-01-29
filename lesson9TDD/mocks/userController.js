@@ -45,7 +45,7 @@ exports.register = async (req, res, next) => {
   const { email, name, password } = value;
 
   // Hash the password before storing (using scrypt from lesson 4)
-  const hashedPassword = await hashPassword(password);
+  const hashed_password = await hashPassword(password);
   // In your register method, after validation and password hashing:
   // Do the Joi validation, so that value contains the user entry you want.
   // hash the password, and put it in value.hashedPassword
@@ -54,7 +54,7 @@ exports.register = async (req, res, next) => {
     const result = await prisma.$transaction(async (tx) => {
       // Create user account (similar to Assignment 6, but using tx instead of prisma)
       const newUser = await tx.user.create({
-        data: { email, name, hashedPassword },
+        data: { email, name, hashed_password },
         select: { id: true, email: true, name: true },
       });
 
@@ -122,7 +122,7 @@ exports.logon = async (req, res) => {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  const isValidPassword = await comparePassword(password, user.hashedPassword);
+  const isValidPassword = await comparePassword(password, user.hashed_password);
 
   // if (!isValidPassword) {
   //   return res.status(401).json({ message: "Invalid credentials" });
