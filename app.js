@@ -13,7 +13,7 @@ const prisma = require("./db/prisma");
 global.users = [];
 global.tasks = [];
 
-app.use(express.json({ limit: "1kb" }));
+app.use(express.json({ limit: "5mb" }));
 
 // *********
 // authentication
@@ -31,7 +31,7 @@ app.use(
   rateLimiter({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // limit each IP to 100 requests per windowMs
-  })
+  }),
 );
 // *********
 
@@ -47,7 +47,7 @@ app.use((req, res, next) => {
     "\nreq.path: ",
     req.path,
     "\nreq.query: ",
-    req.query
+    req.query,
   );
   next();
 });
@@ -78,7 +78,7 @@ app.use(errorHandler);
 
 const port = process.env.PORT || 3000;
 const server = app.listen(port, () =>
-  console.log(`Server is listening on port ${port}...`)
+  console.log(`Server is listening on port ${port}...`),
 );
 
 server.on("error", (err) => {
