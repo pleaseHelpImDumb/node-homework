@@ -5,9 +5,15 @@ const { StatusCodes } = require("http-status-codes");
 const prisma = require("../db/prisma.js");
 // --
 
+// Password
 const crypto = require("crypto");
 const util = require("util");
 const scrypt = util.promisify(crypto.scrypt);
+// --
+
+// Google Auth
+const { OAuth2Client } = require("google-auth-library");
+//
 
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -174,9 +180,118 @@ const logon = async (req, res) => {
     .json({ message: "Authentication Failed." });
 };
 
+const googleLogon = async (req, res) => {
+  console.log("GOOGLE LOGON:");
+  console.log("request body:", req.body);
+  console.log("auth code:", req.body.code);
+
+  if (!req.body.code) {
+    return res
+      .status(StatusCodes.UNAUTHORIZED)
+      .json({ message: "Authentication Failed." });
+  }
+
+  try {
+    //Google OAuth Client Stuff
+    const client = new OAuth2Client({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri: process.env.GOOGLE_REDIRECT_URI,
+    });
+    const { tokens } = await client.getToken(req.body.code);
+    client.setCredentials(tokens);
+    const ticket = await client.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+
+    // user's google info:
+    //const googleId = payload.sub;
+    const email = payload.email;
+    const name = payload.name;
+    //const picture = payload.picture;
+
+    //find user in DB - match email
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user) {
+      //if not, create one (bogus password), add tasks and return 201
+      const result = await prisma.$transaction(async (tx) => {
+        const password = crypto.randomBytes(32).toString("hex");
+        const hashed_password = await hashPassword(password);
+        const newUser = await tx.user.create({
+          data: { name, email, hashed_password },
+          select: { name: true, email: true, id: true },
+        });
+
+        const welcomeTaskData = [
+          {
+            title: "Complete your profile",
+            userId: newUser.id,
+            priority: "medium",
+          },
+          {
+            title: "Add your first task",
+            userId: newUser.id,
+            priority: "high",
+          },
+          { title: "Explore the app", userId: newUser.id, priority: "low" },
+        ];
+        await tx.task.createMany({ data: welcomeTaskData });
+
+        const welcomeTasks = await tx.task.findMany({
+          where: {
+            userId: newUser.id,
+            title: { in: welcomeTaskData.map((t) => t.title) },
+          },
+          select: {
+            id: true,
+            title: true,
+            isCompleted: true,
+            userId: true,
+            priority: true,
+          },
+        });
+        const csrfToken = setJwtCookie(req, res, newUser);
+        return {
+          user: newUser,
+          welcomeTasks: welcomeTasks,
+          csrfToken: csrfToken,
+        };
+      });
+
+      res.status(201);
+      res.json({
+        user: result.user,
+        welcomeTasks: result.welcomeTasks,
+        transactionStatus: "success",
+        csrfToken: result.csrfToken,
+      });
+      return;
+    }
+
+    //if yes, login
+    const csrfToken = setJwtCookie(req, res, user);
+
+    return res.status(StatusCodes.OK).json({
+      name: name,
+      email: email,
+      csrfToken: csrfToken,
+    });
+  } catch (e) {
+    console.log("GOOGLE-LOGON ERROR:", e);
+    return res
+      .status(StatusCodes.UNAUTHORIZED)
+      .json({ message: "Authentication Failed." });
+  }
+};
+
 const logoff = (req, res) => {
   res.clearCookie("jwt", cookieFlags(req));
   res.sendStatus(StatusCodes.OK);
 };
 
-module.exports = { register, logon, logoff };
+module.exports = { register, logon, logoff, googleLogon };
